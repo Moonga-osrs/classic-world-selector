@@ -18,11 +18,11 @@ final class WorldMenus {
   boolean dismiss(){if(open<0)return false;open=-1;keyboardRow=-1;return true;}
   void mouse(Point point){mouse=point;keyboardRow=-1;}
   private Object[] values(){
-    switch(open){case 0:return WorldPreferences.GameMode.values();case 1:return WorldPreferences.Region.values();case 2:return WorldPreferences.Membership.values();case 3:return new Boolean[]{true,false};default:return new Object[]{0,1,2,3,4};}
+    switch(open){case 0:return WorldPreferences.GameMode.values();case 1:return WorldPreferences.Region.values();case 2:return WorldPreferences.Membership.values();case 3:return new Boolean[]{true,false};default:return new Object[]{0,1,2,3,4,5,6};}
   }
   Rectangle menuBounds(){
     if(open<0)return new Rectangle();
-    int width=Math.max(BUTTONS[open].width,open==4?190:180);
+    int width=Math.max(BUTTONS[open].width,open==4?215:180);
     return new Rectangle(Math.min(BUTTONS[open].x,765-width-4),52,width,values().length*20+2);
   }
   Integer hit(Point p){
@@ -44,7 +44,8 @@ final class WorldMenus {
       else if(selectedMenu==3)changed.accept("compact",value);
       else if(row==0)changed.accept("showFlag",!options.showFlag);
       else if(row==1)changed.accept("buttonLine",options.buttonLine==WorldPreferences.ButtonLine.GAME_MODE?WorldPreferences.ButtonLine.CLICK_TO_SWITCH:WorldPreferences.ButtonLine.GAME_MODE);
-      else changed.accept("displaySize",DisplaySize.values()[row-2]);
+      else if(row<5)changed.accept("displaySize",DisplaySize.values()[row-2]);
+      else changed.accept("favouriteView",WorldPreferences.FavouriteView.values()[row-5]);
       return true;
     }
     return false;
@@ -56,6 +57,7 @@ final class WorldMenus {
     if(open==4){
       if(row==0)return "Country flag: "+(options.showFlag?"On":"Off");
       if(row==1)return "World info: "+(options.buttonLine==WorldPreferences.ButtonLine.GAME_MODE?"On":"Off");
+      if(row>=5){WorldPreferences.FavouriteView view=WorldPreferences.FavouriteView.values()[row-5];return (options.favouriteView==view?"(*) ":"( ) ")+(row==5?"Favourites: within filters":"Favourites: left column");}
       DisplaySize size=DisplaySize.values()[row-2];return (textSize==size?"(*) ":"( ) ")+"Hover text: "+size;
     }
     return values()[row].toString();

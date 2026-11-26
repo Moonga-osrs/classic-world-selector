@@ -20,4 +20,8 @@ public interface ClassicWorldSelectorConfig extends Config {
   default WorldPreferences.Membership membership(){return WorldPreferences.Membership.ALL;}
   @ConfigItem(keyName="compact",name="Compact view",description="Use the classic grid; turn off to show the activity beside each world",position=6)
   default boolean compact(){return true;}
+  @ConfigItem(keyName="favouriteView",name="Favourite worlds layout",description="Keep favourites first within preference groups, or show a separate column on the left",position=7)
+  default WorldPreferences.FavouriteView favouriteView(){return WorldPreferences.FavouriteView.WITH_FILTERS;}
+  @ConfigItem(keyName="favouriteWorlds",name="Favourite worlds",description="Ordered favourite world IDs, managed by right-clicking worlds",hidden=true)
+  default String favouriteWorlds(){return "";}
 }

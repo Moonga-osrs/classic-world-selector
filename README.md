@@ -5,6 +5,8 @@ A compact world selector for the RuneLite login screen. It runs inside the offic
 ## Features
 
 - Classic column-based world grid with the client's original sprites and bitmap fonts.
+- Right-click any world to add or remove a favourite. Favourites rise within the current mode, region and membership priority groups.
+- Optional separate favourites column on the left, with drag handles to save a custom order and independent mouse-wheel scrolling.
 - Game-mode and region priorities: for example, German Hardcore worlds, other Hardcore worlds, other German worlds, then the remaining worlds.
 - USA East and West preferences using the client's world-location data, including East + West and West + East orders.
 - Members/F2P only filters, or Members/F2P first without hiding other worlds.
@@ -30,9 +32,15 @@ Development defaults to RuneLite `latest.release`. To reproduce a specific build
 
 The production JAR contains only this plugin's classes and license. It has no bundled RuneLite client, game cache, graphics, fonts, native code or additional runtime libraries. Original graphics and glyphs are obtained through public RuneLite cache APIs while the client is running. Configuration is stored through RuneLite ConfigManager.
 
-## Review status
+## Favourites
 
-Prepared for submission to the RuneLite Plugin Hub. A passing build is not approval; acceptance is decided by RuneLite reviewers. See [REVIEW.md](REVIEW.md) for the review notes.
+Right-click a world to toggle its favourite status without switching worlds. A gold outline marks favourites. By default, preferences take priority: selecting Hardcore puts your favourite Hardcore worlds first, then other Hardcore worlds, then your other favourites and the remaining worlds. Region and membership preferences also stay ahead of favourites. Members only/F2P only still hide worlds of the opposite membership type.
+
+Choose **Options > Favourites: left column**, or **Favourite worlds layout** in RuneLite settings, to reserve a separate column. Favourite worlds move out of the main grid into this column and keep their saved order. Drag the small grip to the left of a favourite up or down to reorder it; dropping outside the column or pressing Escape cancels the drag. Left-click the world tile to select it normally. Scroll over the column to reach additional favourites. This works in both Compact and With activity views; activity tooltips remain disabled in With activity view. The saved list survives restarts and layout changes.
+
+## Plugin Hub
+
+The initial version was accepted in [Plugin Hub PR #21344](https://github.com/runelite/plugin-hub/pull/21344). Updates are submitted separately; see [REVIEW.md](REVIEW.md) for implementation and validation notes.
 
 ## License
 

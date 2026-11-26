@@ -37,8 +37,14 @@ These notes document implementation and validation; they do not claim review app
 
 ## Local validation
 
-- Java 11, RuneLite 1.13.8: `./gradlew check jar -PruneliteVersion=1.13.8` passed; 40 tests, zero failures or errors.
+- Java 11, RuneLite 1.13.8: `./gradlew check jar -PruneliteVersion=1.13.8` passed; 47 tests, zero failures or errors.
 - Production sources also compiled using the current Plugin Hub tooling's standard build template with RuneLite 1.13.8 supplied as its dependency constraint.
 - Keyboard regressions verify that input is consumed only by an open selector at the login screen and that shutdown unregisters its listener.
 - The production JAR was checked for accidental test/development classes or bundled dependencies. The publication file list was checked for private paths, credential patterns, runtime profiles and caches.
 - Interactive behavior of the earlier local prototype was tested separately. This standalone input adapter still requires testing in the official client; a compilation or test pass does not establish review acceptance.
+
+## Favourites update
+
+Right-click toggles a locally stored world ID via ConfigManager; it does not call changeWorld. The default comparator puts favourites first only within the existing preference groups. The optional separate column uses the same membership visibility rules, removes duplicate tiles from the main grid, and stores manual ordering through drag handles. Drag release never selects a world; Escape and outside drops cancel. The column scrolls independently; all remaining worlds stay reachable through normal column pagination. No synthetic input, external endpoints or new runtime dependencies are introduced.
+
+New regressions cover priority boundaries, membership-only visibility, saved ID validation/round-trip, right-click persistence without world selection, dropdown click-through prevention, separate-column selection/deduplication, drag persistence/cancellation and sidebar/main-grid pagination.

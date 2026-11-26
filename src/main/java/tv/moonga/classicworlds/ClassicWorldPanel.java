@@ -14,6 +14,9 @@ final class ClassicWorldPanel extends JPanel {
   private final Consumer<WorldEntry> select;
   private final Runnable close;
   private List<WorldEntry> worlds=Collections.emptyList();
+  private List<WorldEntry> favouriteWorlds=Collections.emptyList();
+  private int favouriteOffset;
+  private int draggingFavourite=-1;
   private List<WorldEntry> allWorlds=Collections.emptyList();
   private WorldPreferences options=WorldPreferences.DEFAULT;
   private BiConsumer<String,Object> settingsChanged=(key,value)->{};
@@ -32,23 +35,55 @@ final class ClassicWorldPanel extends JPanel {
   ClassicWorldPanel(Consumer<WorldEntry> select,Runnable close) {
     this.select=select;this.close=close;setOpaque(true);setBackground(Color.BLACK);setFocusable(true);setDoubleBuffered(false);
     MouseAdapter input=new MouseAdapter(){
-      private int pressed=-1;
-      @Override public void mouseMoved(MouseEvent e){mouse=logical(e.getPoint());menus.mouse(mouse);hover=hit(mouse);repaint();}
-      @Override public void mouseExited(MouseEvent e){hover=-1;mouse=new Point(-1,-1);menus.mouse(mouse);repaint();}
-      @Override public void mousePressed(MouseEvent e){if(SwingUtilities.isLeftMouseButton(e))pressed=hit(logical(e.getPoint()));}
+      private int pressed=-1,pressedWorld=-1;
+      @Override public void mouseMoved(MouseEvent e){mouse=logical(e.getPoint());menus.mouse(mouse);hover=hit(mouse);setCursor(Cursor.getPredefinedCursor(!busy&&!menus.isOpen()&&separateFavourites()&&mouse.x>=3&&mouse.x<16&&mouse.y>=79&&mouse.y<499&&favouriteOffset+(mouse.y-79)/20<favouriteWorlds.size()?Cursor.MOVE_CURSOR:Cursor.DEFAULT_CURSOR));repaint();}
+      @Override public void mouseExited(MouseEvent e){hover=-1;mouse=new Point(-1,-1);menus.mouse(mouse);setCursor(Cursor.getDefaultCursor());repaint();}
+      @Override public void mousePressed(MouseEvent e){
+        if(!SwingUtilities.isLeftMouseButton(e))return;
+        Point point=logical(e.getPoint());pressed=hit(point);WorldEntry world=entry(pressed);pressedWorld=world==null?-1:world.id;
+        if(!busy&&!menus.isOpen()&&separateFavourites()&&point.x>=3&&point.x<16){
+          int row=(point.y-79)/20;
+          if(point.y>=79&&row<favouriteRows()&&favouriteOffset+row<favouriteWorlds.size()){
+            draggingFavourite=favouriteWorlds.get(favouriteOffset+row).id;pressed=-1;pressedWorld=-1;e.consume();repaint();
+          }
+        }
+      }
+      @Override public void mouseDragged(MouseEvent e){
+        if(draggingFavourite>=0){mouse=logical(e.getPoint());e.consume();repaint();}
+      }
       @Override public void mouseReleased(MouseEvent e){
+        if(draggingFavourite>=0&&SwingUtilities.isLeftMouseButton(e)){
+          Point point=logical(e.getPoint());
+          if(separateFavourites()&&point.x>=0&&point.x<110&&point.y>=79&&point.y<499){
+            int row=Math.min(favouriteRows()-1,(point.y-79)/20);
+            int index=Math.min(favouriteWorlds.size()-1,favouriteOffset+row);
+            if(index>=0){
+              int target=options.favourites.indexOf(favouriteWorlds.get(index).id);
+              List<Integer> order=new ArrayList<>(options.favourites);order.remove(Integer.valueOf(draggingFavourite));
+              order.add(Math.min(target,order.size()),draggingFavourite);
+              preferenceChanged("favouriteWorlds",WorldPreferences.serialise(order));
+            }
+          }
+          draggingFavourite=-1;pressed=-1;pressedWorld=-1;e.consume();repaint();return;
+        }
+        if(SwingUtilities.isRightMouseButton(e)){
+          if(!busy){WorldEntry world=entry(hit(logical(e.getPoint())));if(world!=null)preferenceChanged("favouriteWorlds",options.toggleFavourite(world.id));}
+          pressed=-1;e.consume();return;
+        }
         if(!SwingUtilities.isLeftMouseButton(e))return;
         int target=hit(logical(e.getPoint()));
-        if(target==pressed)activate(target);
+        WorldEntry world=entry(target);
+        if(target==pressed&&(world==null?pressedWorld<0:world.id==pressedWorld))activate(target);
         pressed=-1;
       }
-      @Override public void mouseWheelMoved(MouseWheelEvent e){if(menus.isOpen())menus.step(Integer.signum(e.getWheelRotation()));else turn(Integer.signum(e.getWheelRotation()));repaint();e.consume();}
+      @Override public void mouseWheelMoved(MouseWheelEvent e){if(menus.isOpen())menus.step(Integer.signum(e.getWheelRotation()));else if(separateFavourites()&&logical(e.getPoint()).x<110){favouriteOffset=Math.max(0,Math.min(Math.max(0,favouriteWorlds.size()-favouriteRows()),favouriteOffset+Integer.signum(e.getWheelRotation())));}else turn(Integer.signum(e.getWheelRotation()));repaint();e.consume();}
     };
     addMouseListener(input);addMouseMotionListener(input);addMouseWheelListener(input);
     bind("ESCAPE",()->handleKey(KeyEvent.VK_ESCAPE));bind("LEFT",()->handleKey(KeyEvent.VK_LEFT));bind("RIGHT",()->handleKey(KeyEvent.VK_RIGHT));
     bind("UP",()->handleKey(KeyEvent.VK_UP));bind("DOWN",()->handleKey(KeyEvent.VK_DOWN));bind("ENTER",()->handleKey(KeyEvent.VK_ENTER));
   }
   void handleKey(int key){
+    if(key==KeyEvent.VK_ESCAPE&&draggingFavourite>=0){draggingFavourite=-1;repaint();return;}
     switch(key){
       case KeyEvent.VK_ESCAPE:if(!menus.dismiss())close.run();break;
       case KeyEvent.VK_LEFT:if(!menus.isOpen())turn(-1);break;
@@ -75,17 +110,25 @@ final class ClassicWorldPanel extends JPanel {
   void displaySize(DisplaySize size){displaySize=size==null?DisplaySize.NORMAL:size;menus.settings(options,displaySize);repaint();}
   void preferencesChanged(BiConsumer<String,Object> callback){settingsChanged=callback;}
   void options(WorldPreferences value){
-    boolean reorder=value.mode!=options.mode||value.region!=options.region||value.membership!=options.membership||value.compact!=options.compact;
+    boolean reorder=value.mode!=options.mode||value.region!=options.region||value.membership!=options.membership||value.compact!=options.compact||value.favouriteView!=options.favouriteView||!value.favourites.equals(options.favourites);
+    if(reorder)draggingFavourite=-1;
     options=value;menus.settings(options,displaySize);if(reorder){page=0;sortWorlds();}repaint();
   }
   private void preferenceChanged(String key,Object value){
     if(key.equals("displaySize"))displaySize((DisplaySize)value);else options(options.with(key,value));
     settingsChanged.accept(key,value);hover=-1;repaint();
   }
-  void worlds(List<WorldEntry> values){allWorlds=new ArrayList<>(values);sortWorlds();hover=hit(mouse);message=allWorlds.isEmpty()?"Loading worlds...":worlds.isEmpty()?"No worlds match this membership filter.":"";repaint();}
-  ClassicLayout worldLayout(){return new ClassicLayout(worlds.size(),options.compact,57);}
+  void worlds(List<WorldEntry> values){allWorlds=new ArrayList<>(values);sortWorlds();hover=hit(mouse);message=allWorlds.isEmpty()?"Loading worlds...":worlds.isEmpty()&&favouriteWorlds.isEmpty()?"No worlds match this membership filter.":"";repaint();}
+  boolean separateFavourites(){return options.favouriteView==WorldPreferences.FavouriteView.SEPARATE_COLUMN;}
+  ClassicLayout worldLayout(){return separateFavourites()?new ClassicLayout(worlds.size(),options.compact,77,options.compact?110:160,options.compact?655:550):new ClassicLayout(worlds.size(),options.compact,57);}
+  private int favouriteRows(){return 21;}
+  Rectangle favouriteTile(int visibleIndex){return new Rectangle(16,79+visibleIndex*20,88,19);}
+  private WorldEntry entry(int target){
+    if(target<=-30000){int index=-target-30000;return index<favouriteWorlds.size()?favouriteWorlds.get(index):null;}
+    return target>=0&&target<worlds.size()?worlds.get(target):null;
+  }
   void status(String text){message=text;repaint();}
-  void busy(boolean value){busy=value;repaint();}
+  void busy(boolean value){busy=value;draggingFavourite=-1;repaint();}
   private void sortWorlds(){
     Comparator<WorldEntry> comparator;
     switch(sort){
@@ -96,7 +139,14 @@ final class ClassicWorldPanel extends JPanel {
     }
     if(!ascending)comparator=comparator.reversed();
     worlds=options.order(allWorlds,comparator.thenComparingInt(w->w.id));
-    message=allWorlds.isEmpty()?"Loading worlds...":worlds.isEmpty()?"No worlds match this membership filter.":"";
+    favouriteWorlds=new ArrayList<>();
+    if(separateFavourites()){
+      Map<Integer,WorldEntry> available=new HashMap<>();for(WorldEntry world:worlds)available.put(world.id,world);
+      for(int id:options.favourites){WorldEntry world=available.get(id);if(world!=null)favouriteWorlds.add(world);}
+      worlds.removeIf(options::isFavourite);
+    }
+    favouriteOffset=Math.min(favouriteOffset,Math.max(0,favouriteWorlds.size()-favouriteRows()));
+    message=allWorlds.isEmpty()?"Loading worlds...":worlds.isEmpty()&&favouriteWorlds.isEmpty()?"No worlds match this membership filter.":"";
     page=Math.min(page,worldLayout().maxPage);hover=-1;
   }
   private void turn(int direction){page=Math.max(0,Math.min(worldLayout().maxPage,page+direction));hover=-1;repaint();}
@@ -113,6 +163,8 @@ final class ClassicWorldPanel extends JPanel {
     ClassicLayout layout=worldLayout();
     if(page>0&&pageArrowBounds(true).contains(p))return -3;
     if(page<layout.maxPage&&pageArrowBounds(false).contains(p))return -4;
+    if(separateFavourites())for(int i=0;i<favouriteRows()&&favouriteOffset+i<favouriteWorlds.size();i++)
+      if(favouriteTile(i).contains(p))return -30000-favouriteOffset-i;
     int first=layout.first(page);
     for(int i=0;i<layout.columns*layout.rows&&first+i<worlds.size();i++)
       if(layout.tile(i).contains(p))return first+i;
@@ -124,7 +176,7 @@ final class ClassicWorldPanel extends JPanel {
     if(menus.activate(target)){hover=-1;repaint();return;}
     if(target==-3){turn(-1);return;}if(target==-4){turn(1);return;}
     if(target<=-10&&target>=-17){int action=-target-10;sort=action/2;ascending=action%2==0;page=0;sortWorlds();repaint();return;}
-    if(target>=0&&target<worlds.size()&&worlds.get(target).selectable())select.accept(worlds.get(target));
+    WorldEntry world=entry(target);if(world!=null&&world.selectable())select.accept(world);
   }
   @Override protected void paintComponent(Graphics graphics){
     super.paintComponent(graphics);
@@ -145,22 +197,26 @@ final class ClassicWorldPanel extends JPanel {
       g.setColor(Color.BLACK);g.fillRect(708,4,50,16);center(g,smallFont,"Cancel",733,16,Color.WHITE);
       ClassicLayout layout=worldLayout();int first=layout.first(page);
       for(int i=0;i<layout.columns*layout.rows&&first+i<worlds.size();i++){
-        WorldEntry w=worlds.get(first+i);Rectangle r=layout.tile(i);
-        boolean nativeBackground=sprite(g,backgrounds,w.background(),r.x,r.y);
-        if(!nativeBackground){
-          Color top=w.members()?new Color(0xb8a670):new Color(0xa6a6a6);
-          g.setPaint(new GradientPaint(0,r.y,top,0,r.y+19,new Color(0x545454)));g.fillRect(r.x,r.y,88,19);
+        drawWorld(g,worlds.get(first+i),layout.tile(i),first+i,!options.compact);
+      }
+      if(separateFavourites()){
+        g.setColor(new Color(0x857f68));g.drawLine(109,57,109,501);
+        text(g,smallFont,"Favourites",16,71,new Color(0xffd65a));
+        text(g,smallFont,"Worlds",layout.startX,71,Color.WHITE);
+        for(int i=0;i<favouriteRows()&&favouriteOffset+i<favouriteWorlds.size();i++){
+          int target=-30000-favouriteOffset-i;
+          Rectangle tile=favouriteTile(i);WorldEntry world=favouriteWorlds.get(favouriteOffset+i);
+          drawWorld(g,world,tile,target,false);
+          g.setColor(new Color(world.id==draggingFavourite?0xffd65a:0x8c8879));
+          for(int line=0;line<3;line++)g.drawLine(5,tile.y+6+line*3,12,tile.y+6+line*3);
+
         }
-        if(hover==first+i&&w.selectable()&&!busy){g.setColor(new Color(255,255,255,128));g.fillRect(r.x,r.y,88,19);}
-        // The original renderer used half the flag sheet, not a fixed eight-region offset.
-        sprite(g,flags,w.location+(w.members()&&flags!=null?flags.length/2:0),r.x+29,r.y);
-        center(g,boldFont,Integer.toString(w.id),r.x+15,r.y+14,w.types.contains(net.runelite.api.WorldType.DEADMAN)?Color.RED:Color.BLACK);
-        center(g,smallFont,w.population(),r.x+60,r.y+14,Color.WHITE);
-        if(!options.compact){
-          if(hover==first+i){g.setColor(new Color(192,169,70,65));g.fillRect(r.x+90,r.y,r.width-90,19);}
-          Shape clip=g.getClip();g.clipRect(r.x+93,r.y,r.width-95,r.height);
-          text(g,smallFont,w.activity.equals("-")?WorldPreferences.GameMode.of(w.types).toString():w.activity,r.x+94,r.y+14,Color.WHITE);g.setClip(clip);
-        }
+        if(favouriteWorlds.isEmpty()){text(g,smallFont,"Right-click",12,99,Color.GRAY);text(g,smallFont,"a world",12,113,Color.GRAY);}
+        if(favouriteWorlds.size()>favouriteRows())text(g,smallFont,"Scroll for more",8,501,Color.GRAY);
+      }
+      if(draggingFavourite>=0){
+        int row=Math.max(0,Math.min(favouriteRows()-1,(mouse.y-79)/20));
+        g.setColor(new Color(0xffd65a));g.drawRect(3,79+row*20,102,19);
       }
       if(worlds.isEmpty()||!message.isEmpty())center(g,boldFont,message,382,worlds.isEmpty()?253:498,Color.YELLOW);
       menus.paint(g,smallFont);
@@ -171,12 +227,31 @@ final class ClassicWorldPanel extends JPanel {
     if(page<layout.maxPage)paintPageArrow(graphics,false);
     paintTooltip(graphics);
   }
+  private void drawWorld(Graphics2D g,WorldEntry w,Rectangle r,int target,boolean activity){
+        boolean nativeBackground=sprite(g,backgrounds,w.background(),r.x,r.y);
+        if(!nativeBackground){
+          Color top=w.members()?new Color(0xb8a670):new Color(0xa6a6a6);
+          g.setPaint(new GradientPaint(0,r.y,top,0,r.y+19,new Color(0x545454)));g.fillRect(r.x,r.y,88,19);
+        }
+        if(hover==target&&w.selectable()&&!busy){g.setColor(new Color(255,255,255,128));g.fillRect(r.x,r.y,88,19);}
+        // The original renderer used half the flag sheet, not a fixed eight-region offset.
+        sprite(g,flags,w.location+(w.members()&&flags!=null?flags.length/2:0),r.x+29,r.y);
+        center(g,boldFont,Integer.toString(w.id),r.x+15,r.y+14,w.types.contains(net.runelite.api.WorldType.DEADMAN)?Color.RED:Color.BLACK);
+        center(g,smallFont,w.population(),r.x+60,r.y+14,Color.WHITE);
+        if(activity){
+          if(hover==target){g.setColor(new Color(192,169,70,65));g.fillRect(r.x+90,r.y,r.width-90,19);}
+          Shape clip=g.getClip();g.clipRect(r.x+93,r.y,r.width-95,r.height);
+          text(g,smallFont,w.activity.equals("-")?WorldPreferences.GameMode.of(w.types).toString():w.activity,r.x+94,r.y+14,Color.WHITE);g.setClip(clip);
+        }
+        if(options.isFavourite(w)){g.setColor(new Color(0xffd65a));g.drawRect(r.x,r.y,87,18);}
+  }
   private void paintTooltip(Graphics graphics){
-    if(!options.compact||menus.isOpen()||hover<0||hover>=worlds.size()||mouse.y<57||smallFont==null)return;
+    WorldEntry world=entry(hover);
+    if(draggingFavourite>=0||!options.compact||menus.isOpen()||world==null||mouse.y<57||smallFont==null)return;
     PixelDrawing.DeviceGrid grid=new PixelDrawing.DeviceGrid(graphics,displaySize);
     Point topLeft=grid.point(0,0),bottomRight=grid.point(getWidth(),getHeight());
     int available=Math.max(8,(int)((bottomRight.x-topLeft.x)/grid.scale)-4);
-    String text=worlds.get(hover).tooltip();int width=Math.min(available,smallFont.width(text)+6);
+    String text=world.tooltip();int width=Math.min(available,smallFont.width(text)+6);
     int height=smallFont.ascent+8;
     BufferedImage tooltip=new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);Graphics2D g=PixelDrawing.raster(tooltip);
     try{
@@ -202,7 +277,7 @@ final class ClassicWorldPanel extends JPanel {
   private Rectangle pageArrowComponentBounds(boolean left){
     BufferedImage sprite=left?leftArrow:rightArrow;
     int width=(int)((sprite==null?45:sprite.getWidth())*scale()),height=(int)((sprite==null?37:sprite.getHeight())*scale());
-    return new Rectangle(left?8:getWidth()-width-8,getHeight()/2-height/2,width,height);
+    return new Rectangle(left?(separateFavourites()?originX()+(int)(110*scale())+8:8):getWidth()-width-8,getHeight()/2-height/2,width,height);
   }
   private void paintPageArrow(Graphics graphics,boolean left){
     BufferedImage sprite=left?leftArrow:rightArrow;

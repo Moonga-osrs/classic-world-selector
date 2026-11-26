@@ -9,9 +9,12 @@ final class ClassicLayout {
   final int tileWidth;
   ClassicLayout(int count){this(count,true,23);}
   ClassicLayout(int count,boolean compact,int top) {
+    this(count,compact,top,0,WIDTH);
+  }
+  ClassicLayout(int count,boolean compact,int top,int left,int width) {
     int height=HEIGHT-top;
-    tileWidth=compact?TILE_WIDTH:330;
-    int cols=compact?WIDTH/(TILE_WIDTH+1)-1:2, rs=height/(TILE_HEIGHT+1);
+    tileWidth=compact?TILE_WIDTH:Math.min(330,(width-15)/2);
+    int cols=compact?Math.max(1,width/(TILE_WIDTH+1)-1):2, rs=height/(TILE_HEIGHT+1);
     if(count>0) {
       int oldCols, oldRows;
       do {
@@ -22,9 +25,9 @@ final class ClassicLayout {
       } while(cols!=oldCols||rs!=oldRows);
     }
     columns=cols;rows=rs;
-    gapX=Math.min(5,(WIDTH-cols*tileWidth)/(cols+1));
+    gapX=Math.min(left>0&&compact?4:5,(width-cols*tileWidth)/(cols+1));
     gapY=Math.min(5,(height-rs*TILE_HEIGHT)/(rs+1));
-    startX=(WIDTH-cols*tileWidth-gapX*(cols-1))/2;
+    startX=left+(width-cols*tileWidth-gapX*(cols-1))/2;
     startY=top+(height-rs*TILE_HEIGHT-gapY*(rs-1))/2;
     maxPage=Math.max(0,(count+rs-1)/rs-cols);
   }
