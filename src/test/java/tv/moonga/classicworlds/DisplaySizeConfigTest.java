@@ -14,7 +14,7 @@ import org.junit.Test;
 public class DisplaySizeConfigTest {
   @Test public void originalSizeIsTheDefaultAndNamesMatchTheDropdown(){
     assertEquals(DisplaySize.NORMAL,new ClassicWorldSelectorConfig(){}.displaySize());
-    assertEquals("Normal",DisplaySize.NORMAL.toString());assertEquals("Larger",DisplaySize.LARGER.toString());assertEquals("Extra Large",DisplaySize.EXTRA_LARGE.toString());
+    assertEquals("Normal",DisplaySize.NORMAL.toString());assertEquals("Large",DisplaySize.LARGER.toString());assertEquals("Extra large",DisplaySize.EXTRA_LARGE.toString());
   }
   @Test public void hoverSizeChangesNeverResizeTheLoginButton()throws Exception{
     AtomicReference<DisplaySize> selected=new AtomicReference<>(DisplaySize.NORMAL);

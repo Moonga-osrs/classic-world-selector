@@ -54,7 +54,7 @@ public class FavouritesTest {
       p.preferencesChanged((key,value)->{assertEquals("favouriteWorlds",key);saved.set((String)value);});
       click(p,p.worldLayout().tile(2),MouseEvent.BUTTON3);assertEquals("525",saved.get());assertEquals(0,selected.get());assertEquals(525,entries(p,"worlds").get(0).id);
       click(p,p.worldLayout().tile(0),MouseEvent.BUTTON3);assertEquals("",saved.get());assertEquals(0,selected.get());
-      p.activate(-104);saved.set(null);click(p,p.worldLayout().tile(0),MouseEvent.BUTTON3);assertNull(saved.get());assertEquals(0,selected.get());
+      p.activate(-100);saved.set(null);click(p,p.worldLayout().tile(0),MouseEvent.BUTTON3);assertNull(saved.get());assertEquals(0,selected.get());
     });
   }
   @Test public void separateColumnKeepsSavedOrderAndAvoidsDuplicatesAndRespectsOnlyFilter()throws Exception{

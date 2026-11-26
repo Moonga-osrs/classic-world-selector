@@ -41,31 +41,33 @@ public final class WorldPreferences {
     final String label;ButtonLine(String label){this.label=label;}@Override public String toString(){return label;}
   }
   public enum FavouriteView {
-    WITH_FILTERS("Within preference groups"), SEPARATE_COLUMN("Separate left column");
+    WITH_FILTERS("On top"), SEPARATE_COLUMN("Separate");
     final String label;FavouriteView(String label){this.label=label;}@Override public String toString(){return label;}
   }
   final FavouriteView favouriteView;
   final List<Integer> favourites;
   final GameMode mode;final Region region;final Membership membership;
-  final boolean compact,showFlag;final ButtonLine buttonLine;
+  final boolean compact,showFlag,boldHover,favouritesEnabled;final ButtonLine buttonLine;
   static final WorldPreferences DEFAULT=new WorldPreferences(GameMode.ALL,Region.ALL,Membership.ALL,true,true,ButtonLine.CLICK_TO_SWITCH);
   WorldPreferences(GameMode mode,Region region,Membership membership,boolean compact,boolean showFlag,ButtonLine line){
-    this(mode,region,membership,compact,showFlag,line,FavouriteView.WITH_FILTERS,Collections.emptyList());
+    this(mode,region,membership,compact,showFlag,line,FavouriteView.WITH_FILTERS,Collections.emptyList(),false,true);
   }
-  private WorldPreferences(GameMode mode,Region region,Membership membership,boolean compact,boolean showFlag,ButtonLine line,FavouriteView view,List<Integer> favourites){
+  private WorldPreferences(GameMode mode,Region region,Membership membership,boolean compact,boolean showFlag,ButtonLine line,FavouriteView view,List<Integer> favourites,boolean boldHover,boolean favouritesEnabled){
+    this.boldHover=boldHover;this.favouritesEnabled=favouritesEnabled;
     this.favouriteView=view==null?FavouriteView.WITH_FILTERS:view;
     this.favourites=Collections.unmodifiableList(new ArrayList<>(favourites));
     this.mode=mode==null?GameMode.ALL:mode;this.region=region==null?Region.ALL:region;this.membership=membership==null?Membership.ALL:membership;
     this.compact=compact;this.showFlag=showFlag;buttonLine=line==null?ButtonLine.CLICK_TO_SWITCH:line;
   }
   static WorldPreferences from(ClassicWorldSelectorConfig config){
-    return config==null?DEFAULT:new WorldPreferences(config.preferredMode(),config.preferredRegion(),config.membership(),config.compact(),config.showFlag(),config.buttonLine(),config.favouriteView(),parseFavourites(config.favouriteWorlds()));
+    return config==null?DEFAULT:new WorldPreferences(config.preferredMode(),config.preferredRegion(),config.membership(),config.compact(),config.showFlag(),config.worldInfo()?ButtonLine.GAME_MODE:ButtonLine.CLICK_TO_SWITCH,config.favouriteView(),parseFavourites(config.favouriteWorlds()),config.boldHover(),config.favouritesEnabled());
   }
   WorldPreferences with(String key,Object value){
     return new WorldPreferences(key.equals("preferredMode")?(GameMode)value:mode,key.equals("preferredRegion")?(Region)value:region,
         key.equals("membership")?(Membership)value:membership,key.equals("compact")?(Boolean)value:compact,
-        key.equals("showFlag")?(Boolean)value:showFlag,key.equals("buttonLine")?(ButtonLine)value:buttonLine,
-        key.equals("favouriteView")?(FavouriteView)value:favouriteView,key.equals("favouriteWorlds")?parseFavourites((String)value):favourites);
+        key.equals("showFlag")?(Boolean)value:showFlag,key.equals("buttonLine")?(ButtonLine)value:key.equals("worldInfo")?((Boolean)value?ButtonLine.GAME_MODE:ButtonLine.CLICK_TO_SWITCH):buttonLine,
+        key.equals("favouriteView")?(FavouriteView)value:favouriteView,key.equals("favouriteWorlds")?parseFavourites((String)value):favourites,
+        key.equals("boldHover")?(Boolean)value:boldHover,key.equals("favouritesEnabled")?(Boolean)value:favouritesEnabled);
   }
   static List<Integer> parseFavourites(String value){
     LinkedHashSet<Integer> ids=new LinkedHashSet<>();
@@ -73,10 +75,11 @@ public final class WorldPreferences {
     return new ArrayList<>(ids);
   }
   String toggleFavourite(int id){
+    if(!favouritesEnabled)return serialise(favourites);
     List<Integer> ids=new ArrayList<>(favourites);if(!ids.remove(Integer.valueOf(id)))ids.add(id);return serialise(ids);
   }
   static String serialise(List<Integer> ids){return ids.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));}
-  boolean isFavourite(WorldEntry world){return favourites.contains(world.id);}
+  boolean isFavourite(WorldEntry world){return favouritesEnabled&&favourites.contains(world.id);}
   List<WorldEntry> order(List<WorldEntry> source,Comparator<WorldEntry> base){
     List<WorldEntry> result=new ArrayList<>();
     for(WorldEntry world:source){

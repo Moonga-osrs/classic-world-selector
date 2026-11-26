@@ -1,50 +1,41 @@
 # Review notes
 
-This is a standalone plugin for the official RuneLite client. It does not load, install, update or depend on a custom launcher or another plugin.
+Classic World Selector is a standalone plugin using the standard Plugin Hub build and public RuneLite APIs. It does not depend on a custom launcher. This update extends the accepted initial version with favourites, local search and grouped native configuration.
 
-## User actions and scope
+## Selection and input
 
-- The custom controls are visible only at `GameState.LOGIN_SCREEN`.
-- A real user click on a selectable world queues one `Client.changeWorld` call on `ClientThread`.
-- The game state and plugin lifecycle are checked again inside that callback. Logged-in world hopping is never performed.
-- No login attempt, character switch, synthetic input, game packet construction, menu-entry modification or repeated world-switch automation is used.
-- The selector consumes keyboard input through RuneLite KeyManager only while open. It never calls focus, window activation, minimisation or positioning APIs.
-- The Swing controls position themselves within the existing RuneLite layered pane; they do not modify the application window or gameplay interfaces.
+- Controls are shown only at `GameState.LOGIN_SCREEN`. A selectable world requires an explicit left-click; one `Client.changeWorld` call is queued on ClientThread and checks the game state and plugin lifecycle again.
+- Right-click toggles a favourite; dragging a favourite's grip only updates its saved position. Escape and outside drops cancel dragging. Neither operation selects a world.
+- Search matches existing world snapshots by number, activity or mode, ignoring case, spacing and punctuation. It makes no network requests, reads no clipboard and does not persist queries.
+- KeyManager handles canvas input while the selector is open. A component KeyAdapter handles Swing-panel input after a user mouse click focuses that component. No global Swing shortcuts intercept the settings sidebar. No application window activation, repositioning or minimisation is performed.
+- The cog leaves the selector open and posts the public `RUNELITE_OVERLAY_CONFIG` action through OverlayMenuClicked/EventBus, targeting this plugin. RuneLite ConfigPlugin opens the native settings. No reflective access to configuration internals is used.
+- No login attempt, character switch, logged-in hopping, synthetic input, packet construction or repeated switching automation is performed.
 
-## Data and dependencies
+## Preferences and sidebar
 
-- World data comes from `Client.getWorldList` or the injected RuneLite `WorldService`.
-- USA coast information comes from `Client.getEnum(EnumID.WORLD_LOCATIONS)`, as in RuneLite's own World Hopper. Unknown locations are not guessed.
-- Sprites, glyph masks and metrics use public `Client.getSprites`, `getIndexSprites`, `getIndex` and `IndexDataBase.loadData`. No obfuscated names, reflection or hash/version allowlists are used.
-- No account sessions, authentication variables, player profiles, credentials or recordings are accessed.
-- No production filesystem access, own HTTP client/server, sockets, external processes, executable downloads or native integration is present.
-- Runtime classes are compile-only RuneLite dependencies. The cache-preview utility and its cache-library dependency are absent. Test-only reflection in unit fixtures and the development launcher are excluded from the production JAR.
+Favourites are prioritised only within existing game-mode, region and membership preference groups. An optional left column keeps a manually ordered favourite list without duplicating tiles in the main grid; it scrolls independently. Explicit Members only/F2P only filters still apply. Disabling favourites retains their saved IDs and order.
 
-## Packaging and differences from the local prototype
+Four native ConfigSection groups provide headings and separator lines: Button behaviour, World list, Favourite settings and Filters. Bold changes only compact hover tooltips using the existing b12_full bitmap font. Hover-size labels are Normal, Large and Extra large. Layout labels are On top and Separate; their stored enum values remain compatible. World info is now a boolean checkbox whose default falls back to the legacy hidden buttonLine enum so existing choices are preserved.
 
-The manifest uses the standard Plugin Hub build. The repository includes a BSD 2-Clause license, public README, a development entry point under test sources, and automated tests. No cache files or account-specific data are included.
+## Data and packaging
 
-The existing feature set is retained. Component-focus requests from the local prototype were replaced with RuneLite KeyManager input handling. This avoids focus manipulation and prevents Enter or typed input leaking to the underlying login form while the selector is open.
+- World snapshots use Client.getWorldList or the injected RuneLite WorldService. USA coast data comes from Client.getEnum(EnumID.WORLD_LOCATIONS), without guesses or DNS lookups.
+- Runtime sprites and fonts use public Client cache APIs. No client binaries, cache data, fonts or game graphics are bundled.
+- Configuration is saved through ConfigManager. No account/session/credential/profile/recording access, production filesystem operations, own HTTP client/server, external processes, native integration or downloaded executable code is present.
+- No new runtime dependencies or production reflection are introduced. Test/development classes and the isolated preview tooling are not in the production JAR.
 
-## References checked
+## Validation
 
-- [Plugin Hub submission and standard-build instructions](https://github.com/runelite/plugin-hub)
-- [Plugin Hub review scope](https://github.com/runelite/runelite/wiki/Plugin-Hub-Review)
+- Java 11 / RuneLite 1.13.8: check + jar passed; 57 tests, zero failures/errors.
+- Production sources compile using the current Plugin Hub tooling standard-build template with RuneLite 1.13.8 supplied as its dependency constraint.
+- Regressions cover the requested priority boundaries, favourite persistence/disable/restore, right-click/drag selection isolation, pagination and overlap, native config descriptor group order, legacy World info migration, tooltip-only bold, search editing/clear/refresh and configuration-event routing.
+- AWT key redispatch and an isolated visible Swing window were tested with actual mouse/keyboard input. Search text arrived, the selector stayed visible beside a settings panel, and editing the sidebar left the query unchanged.
+- Previews with actual cache bitmap glyphs/sprites were visually inspected at 150% DPI. The native ConfigPanel with RuneLiteLAF was rendered using a synthetic fixture to verify section order and separation. The helpers and their test-only reflection/cache dependency are outside this repository.
+- The update was installed and checksum-verified in the local Moonga catalog before submission. Native official-client integration still requires validation; these checks do not establish Plugin Hub acceptance.
+
+## References
+
+- [Plugin Hub submission and standard build](https://github.com/runelite/plugin-hub)
+- [Review scope](https://github.com/runelite/runelite/wiki/Plugin-Hub-Review)
 - [Rejected or rolled-back features](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features)
-- [Jagex third-party client guidelines](https://secure.runescape.com/m=news/third-party-client-guidelines?oldschool=1)
-
-These notes document implementation and validation; they do not claim review approval.
-
-## Local validation
-
-- Java 11, RuneLite 1.13.8: `./gradlew check jar -PruneliteVersion=1.13.8` passed; 47 tests, zero failures or errors.
-- Production sources also compiled using the current Plugin Hub tooling's standard build template with RuneLite 1.13.8 supplied as its dependency constraint.
-- Keyboard regressions verify that input is consumed only by an open selector at the login screen and that shutdown unregisters its listener.
-- The production JAR was checked for accidental test/development classes or bundled dependencies. The publication file list was checked for private paths, credential patterns, runtime profiles and caches.
-- Interactive behavior of the earlier local prototype was tested separately. This standalone input adapter still requires testing in the official client; a compilation or test pass does not establish review acceptance.
-
-## Favourites update
-
-Right-click toggles a locally stored world ID via ConfigManager; it does not call changeWorld. The default comparator puts favourites first only within the existing preference groups. The optional separate column uses the same membership visibility rules, removes duplicate tiles from the main grid, and stores manual ordering through drag handles. Drag release never selects a world; Escape and outside drops cancel. The column scrolls independently; all remaining worlds stay reachable through normal column pagination. No synthetic input, external endpoints or new runtime dependencies are introduced.
-
-New regressions cover priority boundaries, membership-only visibility, saved ID validation/round-trip, right-click persistence without world selection, dropdown click-through prevention, separate-column selection/deduplication, drag persistence/cancellation and sidebar/main-grid pagination.
+- [Jagex client guidelines](https://secure.runescape.com/m=news/third-party-client-guidelines?oldschool=1)

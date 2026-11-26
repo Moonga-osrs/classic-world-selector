@@ -31,6 +31,7 @@ public class ClassicWorldSelectorPlugin extends Plugin {
   @Inject private ClassicWorldSelectorConfig config;
   @Inject private ConfigManager configManager;
   @Inject private KeyManager keyManager;
+  @Inject private net.runelite.client.eventbus.EventBus eventBus;
   private ClassicWorldPanel panel;
   private ClassicWorldButton button;
   private JLayeredPane layer;
@@ -47,11 +48,14 @@ public class ClassicWorldSelectorPlugin extends Plugin {
     @Override public void keyPressed(KeyEvent event){
       if(!selectorInputActive())return;
       event.consume();
-      int key=event.getKeyCode();
-      SwingUtilities.invokeLater(()->{if(selectorInputActive()&&panel!=null)panel.handleKey(key);});
+      int key=event.getKeyCode(),modifiers=event.getModifiersEx();
+      SwingUtilities.invokeLater(()->{if(selectorInputActive()&&panel!=null)panel.handleKey(key,modifiers);});
     }
     @Override public void keyReleased(KeyEvent event){if(selectorInputActive())event.consume();}
-    @Override public void keyTyped(KeyEvent event){if(selectorInputActive())event.consume();}
+    @Override public void keyTyped(KeyEvent event){
+      if(!selectorInputActive())return;event.consume();char value=event.getKeyChar();
+      SwingUtilities.invokeLater(()->{if(selectorInputActive()&&panel!=null)panel.handleTyped(value);});
+    }
   };
   private boolean selectorInputActive(){return running&&opened&&canSelect(client.getGameState());}
 
@@ -63,6 +67,7 @@ public class ClassicWorldSelectorPlugin extends Plugin {
       panel=new ClassicWorldPanel(this::select,this::close);
       button=new ClassicWorldButton(this::open);button.world(client.getWorld());
       panel.preferencesChanged(this::savePreference);
+      panel.settingsRequested(this::openSettings);
       applyDisplaySize();
       panel.setVisible(false);timer=new javax.swing.Timer(100,e->position());timer.start();position();
       clientThread.invokeLater(()->{if(running)sample();});
@@ -148,6 +153,16 @@ public class ClassicWorldSelectorPlugin extends Plugin {
   private void open(){
     if(!running||!canSelect(client.getGameState()))return;
     opened=true;position();clientThread.invokeLater(()->{if(running)sample();});refreshWorlds();
+  }
+  void openSettings(){
+    if(!selectorInputActive())return;
+    // Keep the grid open; native sidebar controls receive their own focus and keys.
+    // Use the same public configuration event handled by RuneLite's ConfigPlugin.
+    net.runelite.client.ui.overlay.Overlay settingsTarget=new net.runelite.client.ui.overlay.Overlay(this){
+      @Override public Dimension render(Graphics2D graphics){return null;}
+    };
+    eventBus.post(new net.runelite.client.events.OverlayMenuClicked(
+        new net.runelite.client.ui.overlay.OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG,"Configure","Classic World Selector"),settingsTarget));
   }
   private void close(){opened=false;if(panel!=null)panel.busy(false);position();}
   private void position(){
